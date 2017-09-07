@@ -1,0 +1,87 @@
+install.packages("titanic")
+install.packages("rpart.plot")
+install.packages("randomForest")
+install.packages("DAAG")
+library(titanic)
+library(rpart.plot)
+library(gmodels)
+library(Hmisc)
+library(pROC)
+library(ResourceSelection)
+library(car)
+library(caret)
+library(dplyr)
+library(InformationValue)
+library(rpart)
+library(randomForest)
+library("DAAG")
+getwd()
+setwd("C:/Users/Hp/Desktop/Term 4/AAMA/data_2017/Assignment 2 data")
+titanic_train_2<-read.csv('train.csv')
+titanic_train<-titanic_train_2
+titanic_train_3 <- read.csv('train.csv')
+titanic_test_const <-read.csv('test-3.csv')
+set.seed(1234)
+titanic_train$rand <- runif(nrow(titanic_train))
+titanic_train_start <- titanic_train[titanic_train$rand <= 0.7,]
+titanic_test_start <- titanic_train[titanic_train$rand > 0.7,]
+CrossTable(titanic_train$Survived)
+titanic_train <- titanic_train[!apply(titanic_train[,c("Pclass", "Sex", "SibSp", "Parch", "Fare", "Age")], 1, anyNA),]
+titanic_train_NA_allcols <- titanic_train_2[!apply(titanic_train_2[,c("Pclass", "Sex", "SibSp", "Parch", "Fare", "Age")], 1, anyNA),]
+nrow(titanic_train_2)
+mean_age = mean(titanic_train_2$Age)
+titanic_train_mean_angad <- titanic_train_start
+titanic_train_mean_angad2 <- titanic_train_start
+titanic_train_mean_angad$Age[is.na(titanic_train_mean_angad$Age)] = mean(titanic_train_mean_angad$Age, na.rm = TRUE)
+titanic_train_mean_angad2$Age[is.na(titanic_train_mean_angad2$Age)] = mean(titanic_train_mean_angad2$Age, na.rm = TRUE)
+full.model.titanic.mean <- glm(formula = Survived ~ Pclass + Sex + SibSp + Parch + Fare + Age,
+                               data=titanic_train_mean_angad, family = binomial)
+fit.train.mean <- lm(formula = Survived ~ Pclass + Sex + SibSp + Parch + Fare + Age,
+                     data=titanic_train_mean_angad2)
+summary(fit.train.mean)
+vif(fit.train.mean) 
+titanic_train_mean_angad$Parch<-NULL
+full.model.titanic.mean <- glm(formula = Survived ~ Pclass + Sex + SibSp + Fare + Age,
+                               data=titanic_train_mean_angad, family = binomial)
+summary(full.model.titanic.mean)
+titanic_train_mean_angad$Fare<-NULL
+full.model.titanic.mean <- glm(formula = Survived ~ Pclass + Sex + SibSp + Age,
+                               data=titanic_train_mean_angad, family = binomial)
+summary(full.model.titanic.mean)
+titanic_train_mean_angad$prob = predict(full.model.titanic.mean, type=c("response"))
+titanic_train_mean_angad$Survived.pred = ifelse(titanic_train_mean_angad$prob>=.5,'pred_yes','pred_no')
+table(titanic_train_mean_angad$Survived.pred,titanic_train_mean_angad$Survived)
+nrow(titanic_test)
+nrow(titanic_test2_mean_angad)
+titanic_test2_mean_angad <- titanic_test_start
+titanic_test2_mean_angad$Age[is.na(titanic_test2_mean_angad$Age)] = mean(titanic_test2_mean_angad$Age, na.rm = TRUE)
+titanic_test2_mean_angad$prob = predict(full.model.titanic.mean, newdata=titanic_test2_mean_angad, type=c("response"))
+titanic_test2_mean_angad$Survived.pred = ifelse(titanic_test2_mean_angad$prob>=.5,'pred_yes','pred_no')
+table(titanic_test2_mean_angad$Survived.pred,titanic_test2_mean_angad$Survived)
+df.jackrose <- read.csv('Book1.csv')
+df.jackrose$prob = predict(full.model.titanic.mean, newdata=df.jackrose, type=c("response"))
+df.jackrose$Survived.pred = ifelse(df.jackrose$prob>=.5,'pred_yes','pred_no')
+head(df.jackrose)
+Kfold_func <- function(dataset,formula,family,k)
+{
+  object <- glm(formula=formula, data=dataset, family = family)
+  CVbinary(object, nfolds= k, print.details=TRUE)
+}
+MeanSquareError_func <- function(dataset,formula)
+{
+  LM_Object <- lm(formula=formula, data=dataset)
+  LM_Object_sum <-summary(LM_Object)
+  MSE <- mean(LM_Object_sum$residuals^2)
+  print("Mean squared error")
+  print(MSE)
+}
+Kfoldobj <- Kfold_func(titanic_train_mean_angad,Survived ~ Pclass + Sex + SibSp + Age,binomial,10)
+MSE_Train <-MeanSquareError_func(titanic_train_mean_angad,Survived ~ Pclass + Sex + SibSp + Age)
+table(titanic_train_mean_angad$Survived,round(Kfoldobj$cvhat))
+print("Estimate of Accuracy")
+print(Kfoldobj$acc.cv)
+Kfoldobj.test <- Kfold_func(titanic_test2_mean_angad,Survived ~ Pclass + Sex + SibSp + Age,binomial,10)
+MSE_Test <-MeanSquareError_func(titanic_test2_mean_angad,Survived ~ Pclass + Sex + SibSp + Age)
+table(titanic_test2_mean_angad$Survived,round(Kfoldobj.test$cvhat))
+print("Estimate of Accuracy")
+print(Kfoldobj.test$acc.cv)
